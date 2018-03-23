@@ -19,6 +19,8 @@ import shlex
 import pkg_resources
 import pip
 
+import click
+
 # TODO bundle own version of distlib. Perhaps
 try:
     from pip._vendor.distlib import locators
@@ -779,82 +781,61 @@ def execute(interpreter, cmd, args):
     exc()
 
 
-class CmdRegister:
-    commands = {}
-    ordered = []
-
-    @classmethod
-    def cmdline(cls, *cmd_aliases):
-        def wrap(func):
-            for alias in cmd_aliases:
-                cls.commands[alias] = func
-                cls.ordered.append(alias)
-        return wrap
-
-    @classmethod
-    def help(cls):
-        for alias in cls.ordered:
-            if not alias:
-                continue
-            print("{:15s} {}".format(alias, cls.commands[alias].__doc__))
-
-    @classmethod
-    def main(cls):
-        alias = '' if len(sys.argv) == 1 else sys.argv[1]
-        if alias == 'help':
-            cls.help()
-            return
-        if alias not in cls.commands:
-            print('Unknown command\nTry this:')
-            cls.help()
-            sys.exit(1)
-        cls.commands[alias]()
+@click.group()
+def cli():
+    pass
 
 
-@CmdRegister.cmdline('', 'install')
+@cli.command('install')
 def cmd_install():
     "Install packages by frozen.txt and resolve ones that was not frozen"
     install_all(**create_parser_or_exit())
 
 
-@CmdRegister.cmdline('upgrade')
-def cmd_upgrade():
+@cli.command('upgrade')
+@click.argument('PACKAGE', required=False)
+@click.option('--pre', 'allow_prerelease',
+              is_flag=True,
+              help='Allow pre-release versions')
+def cmd_upgrade(package, allow_prerelease=False):
     """
     [package [pre]] if package provided will upgrade it and dependencies or all packages from PyPI.
     If `pre` provided will look for prereleases.
     """
-    key = sys.argv[2] if len(sys.argv) > 2 else None
-    prereleases = sys.argv[3] == 'pre' if len(sys.argv) > 3 else False
-    upgrade_all(key=key, prereleases=prereleases, **create_parser_or_exit())
+    upgrade_all(key=package, prereleases=allow_prerelease, **create_parser_or_exit())
 
 
-CmdRegister.cmdline('fixate')(fixate)
+cli.command('fixate')(fixate)
 
 
-@CmdRegister.cmdline('exec')
-def cmd_exec():
+@cli.command('exec')
+@click.argument('INTERPRETER')
+@click.argument('COMMAND')
+@click.argument('ARGS', nargs=-1)
+def cmd_exec(interpreter, command, args):
     "executes setuptools entry"
-    execute(sys.argv[0], sys.argv[2], sys.argv[3:])
+    execute(interpreter, command, args)
 
 
-@CmdRegister.cmdline('entry_points')
+@cli.command('entry_points')
 def cmd_entry_points():
     "prints available setuptools entries"
     for entry, package in entry_points().items():
         print('%s (%s)' % (entry, package))
 
 
-@CmdRegister.cmdline('edit')
-def cmd_edit():
+@cli.command('edit')
+@click.argument('PACKAGE')
+def cmd_edit(package):
     "prints directory path to package"
     parser_kw = create_parser_parameters()
     suite = Parser(**parser_kw).create_suite()
     if suite.need_freeze():
         raise PundleException('%s file is outdated' % suite.parser.frozen_file)
-    print(suite.states[sys.argv[2]].frozen_dist().location)
+    print(suite.states[package].frozen_dist().location)
 
 
-@CmdRegister.cmdline('info')
+@cli.command('info')
 def cmd_info():
     "prints info about Pundle state"
     parser_kw = create_parser_parameters()
@@ -898,14 +879,14 @@ def run_console(glob):
     code.InteractiveConsole(locals=glob).interact()
 
 
-@CmdRegister.cmdline('console')
-def cmd_console():
+@cli.command('console')
+@click.argument('interpreter', required=False)
+def cmd_console(interpreter):
     "[ipython|bpython|ptpython] starts python console with activated pundle environment"
     suite = activate()
     glob = {
         'pundle_suite': suite,
     }
-    interpreter = sys.argv[2] if len(sys.argv) > 2 else None
     if not interpreter:
         run_console(glob)
     elif interpreter == 'ipython':
@@ -921,35 +902,45 @@ def cmd_console():
         raise PundleException('Unknown interpreter: {}. Choose one of None, ipython, bpython, ptpython.')
 
 
-@CmdRegister.cmdline('run')
-def cmd_run():
-    "executes given script"
+@cli.command('run')
+@click.argument('script')
+@click.argument('args', nargs=-1)
+def cmd_run(script, args):
+    "executes given Python script"
     activate()
     import runpy
     sys.path.insert(0, '')
-    script = sys.argv[2]
-    sys.argv = [sys.argv[2]] + sys.argv[3:]
+    sys.argv = list(args)
     runpy.run_path(script, run_name='__main__')
 
 
-@CmdRegister.cmdline('module')
-def cmd_module():
+@cli.command('module')
+@click.argument('module')
+@click.argument('args', nargs=-1)
+def cmd_module(module, args):
     "executes module like `python -m`"
     activate()
     import runpy
     sys.path.insert(0, '')
-    module = sys.argv[2]
-    sys.argv = [sys.argv[2]] + sys.argv[3:]
+    sys.argv = list(args)
     runpy.run_module(module, run_name='__main__')
 
 
-@CmdRegister.cmdline('env')
-def cmd_env():
-    "populates PYTHONPATH with packages paths and executes command line in subprocess"
+@cli.command('env')
+@click.argument('command')
+@click.argument('args', nargs=-1)
+def cmd_env(command, args):
+    """ Exec command with PYTHONPATH set to paths of the installed packages.
+
+    Example:
+
+        pundle env python -- -c 'import os; print(os.environ["PYTHONPATH"])'
+    """
     activate()
     aug_env = os.environ.copy()
     aug_env['PYTHONPATH'] = ':'.join(sys.path)
-    subprocess.call(sys.argv[2:], env=aug_env)
+    args = [command] + list(args)
+    subprocess.call(args, env=aug_env)
 
 
 ENTRY_POINT_TEMPLATE = '''#! /usr/bin/env python
@@ -958,7 +949,7 @@ pundle.entry_points()['{entry_point}'].get_entry_info('console_scripts', '{entry
 '''
 
 
-@CmdRegister.cmdline('linkall')
+@cli.command('linkall')
 def link_all():
     "links all packages to `.pundle_local` dir"
     local_dir = '.pundle_local'
@@ -1001,7 +992,7 @@ def link_all():
         os.remove(de.path)
 
 
-@CmdRegister.cmdline('show_requirements')
+@cli.command('show_requirements')
 def show_requirements():
     "shows details requirements info"
     suite = activate()
@@ -1033,4 +1024,4 @@ def use(key):
 
 
 if __name__ == '__main__':
-    CmdRegister.main()
+    cli()

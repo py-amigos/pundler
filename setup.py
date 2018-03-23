@@ -22,10 +22,13 @@ setupconf = dict(
     long_description=read('README.rst'),
     keywords='bundler virtualenv pip install package setuptools',
 
+    install_requires=[
+        'click>=6'
+    ],
     py_modules=['pundle'],
     entry_points=dict(
         console_scripts=[
-            'pundle = pundle:CmdRegister.main'
+            'pundle = pundle:cli'
         ]
     ),
     classifiers=[
