@@ -781,9 +781,11 @@ def execute(interpreter, cmd, args):
     exc()
 
 
-@click.group()
-def cli():
-    pass
+@click.group(invoke_without_command=True)
+@click.pass_context
+def cli(ctx):
+    if not ctx.invoked_subcommand:
+        ctx.invoke(cmd_install)
 
 
 @cli.command('install')
