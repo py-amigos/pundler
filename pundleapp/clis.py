@@ -21,8 +21,7 @@ class Command:
         try:
             self.fn(args)
         except PundleException as error:
-            sys.stderr.write(str(error))
-            sys.exit(1)
+            self.args_parser.exit(status=1, message=str(error))
 
 
 class Argument:
