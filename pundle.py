@@ -262,7 +262,7 @@ class RequirementState(object):
     """
     def __init__(self, key, req=None, frozen=None, installed=None, hashes=None):
         self.key = key
-        self.requirement = req
+        self.requirement = req  # type: CustomReq
         self.frozen = frozen
         self.hashes = hashes
         self.installed = installed or []
@@ -1136,7 +1136,12 @@ def cmd_console(args):
     Argument('args', nargs='*'),
 ))
 def cmd_run(args):
-    # /pundle run test.py -- 1 --help
+    """ Execute given script.
+
+    Examples:
+
+    | pundle run test.py -- 1 --help
+    """
     activate()
     import runpy
     sys.path.insert(0, '')
@@ -1154,9 +1159,10 @@ def cmd_module(args):
 
     Examples:
 
-    | pundle module some.module.name  -- 8080
+    To get help of the pundle itself run as a module.
+
+    | pundle module pundle -- --help
     """
-    # ./pundle run ../pundle.py -- --help
     activate()
     import runpy
     sys.path.insert(0, '')
@@ -1165,12 +1171,17 @@ def cmd_module(args):
     runpy.run_module(module, run_name='__main__')
 
 
-@cli.command('env', help='Execute any command in the environment.', arguments=(
+@cli.command('env', help='Execute any command in the environment', arguments=(
     Argument('command'),
     Argument('args', nargs='*'),
 ))
 def cmd_env(args):
-    # ./pundle env python -- -c 'print(__import__("os").environ["PYTHONPATH"])'
+    """ Execute any command in the environment.
+
+    Examples:
+
+    | pundle env python -- -c 'print(__import__("os").environ["PYTHONPATH"])'
+    """
     activate()
     aug_env = os.environ.copy()
     aug_env['PYTHONPATH'] = ':'.join(sys.path)
