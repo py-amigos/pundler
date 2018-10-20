@@ -55,21 +55,37 @@ def test_sucommand_help_generated(capsys):
     group = clis.CommandGroup(cli_name='cli-name')
 
     @group.command('cmd-name', help='Cmd help message', arguments=(
-        clis.Option('--option', help='option help'),
+        clis.Option('--option', help='option help', action='store_true'),
         clis.Argument('arg_list', nargs='*')
     ))
     def cmd(args):
+        """ Cmd help message.
+
+        And this should be a description.
+
+        Example:
+
+        | cli-name cmd-name --option arg1 arg2
+        """
         pass
     cmd.args_parser.print_help()
     assert """
-usage: cli-name cmd-name [-h] [--option OPTION] [arg_list [arg_list ...]]
+usage: cli-name cmd-name [-h] [--option] [arg_list [arg_list ...]]
+
+Cmd help message.
+
+        And this should be a description.
+
+        Example:
+
+        | cli-name cmd-name --option arg1 arg2
 
 positional arguments:
   arg_list
 
 optional arguments:
-  -h, --help       show this help message and exit
-  --option OPTION  option help
+  -h, --help  show this help message and exit
+  --option    option help
     """.strip() == capsys.readouterr().out.strip()
 
 

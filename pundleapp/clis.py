@@ -1,7 +1,6 @@
 """ Wrapper for argparse library to declar commands on handler functions.
 """
 import argparse
-import sys
 
 from .errors import PundleException
 
@@ -57,9 +56,19 @@ class CommandGroup:
         self._default_command = None  # type: Command
 
     def command(self, name, help=None, is_default=False, arguments=()):
-        parser = self._subparsers.add_parser(name, help=help)
+        """ Register the command in the group.
 
+        :param str name: Name of the command.
+        :param str help: Help message displayed when help for the group is shown.
+        """
         def decorator(fn):
+            description = get_command_description(fn)
+            parser = self._subparsers.add_parser(
+                name,
+                help=help,
+                description=description,
+                formatter_class=argparse.RawDescriptionHelpFormatter
+            )
             command = Command(name, fn, parser)
             if is_default:
                 self._default_command = command
@@ -81,3 +90,8 @@ class CommandGroup:
             command(args)
         else:
             self._parser.print_help()
+
+
+def get_command_description(fn):
+    description = getattr(fn, '__doc__') or ''
+    return description.strip()

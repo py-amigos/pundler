@@ -1150,6 +1150,12 @@ def cmd_run(args):
     Argument('args', nargs='*')
 ))
 def cmd_module(args):
+    """ Execute module like `python -m`.
+
+    Examples:
+
+    | pundle module some.module.name  -- 8080
+    """
     # ./pundle run ../pundle.py -- --help
     activate()
     import runpy
