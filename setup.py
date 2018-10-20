@@ -22,6 +22,14 @@ setupconf = dict(
     long_description=read('README.rst'),
     keywords='bundler virtualenv pip install package setuptools',
 
+    install_requires=[
+        # v39.0 - Removed long-deprecated support for iteration on Version
+        # objects as returned by pkg_resources.parse_version. Removed the
+        # SetuptoolsVersion and SetuptoolsLegacyVersion names as well. They
+        # should not have been used, but if they were, replace with Version and
+        # LegacyVersion from packaging.version.
+        'setuptools<=38.7.0'
+    ],
     py_modules=['pundle'],
     entry_points=dict(
         console_scripts=[

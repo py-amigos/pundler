@@ -19,6 +19,9 @@ import shlex
 import pkg_resources
 import pip
 
+from pundleapp.clis import Argument, Option, CommandGroup
+from pundleapp.errors import PundleException
+
 # TODO bundle own version of distlib. Perhaps
 try:
     from pip._vendor.distlib import locators
@@ -33,10 +36,6 @@ except NameError:
 
 def print_message(*a, **kw):
     print(*a, **kw)
-
-
-class PundleException(Exception):
-    pass
 
 
 def python_version_string():
@@ -720,7 +719,7 @@ import pundle; pundle.activate()
 """
 
 
-def fixate():
+def fixate(_):
     "puts activation code to usercustomize.py for user"
     print_message('Fixate')
     import site
@@ -779,74 +778,57 @@ def execute(interpreter, cmd, args):
     exc()
 
 
-class CmdRegister:
-    commands = {}
-    ordered = []
-
-    @classmethod
-    def cmdline(cls, *cmd_aliases):
-        def wrap(func):
-            for alias in cmd_aliases:
-                cls.commands[alias] = func
-                cls.ordered.append(alias)
-        return wrap
-
-    @classmethod
-    def help(cls):
-        for alias in cls.ordered:
-            if not alias:
-                continue
-            print("{:15s} {}".format(alias, cls.commands[alias].__doc__))
-
-    @classmethod
-    def main(cls):
-        alias = '' if len(sys.argv) == 1 else sys.argv[1]
-        if alias == 'help':
-            cls.help()
-            return
-        if alias not in cls.commands:
-            print('Unknown command\nTry this:')
-            cls.help()
-            sys.exit(1)
-        cls.commands[alias]()
+cli = CommandGroup(
+    cli_name='pundle',
+)
 
 
-@CmdRegister.cmdline('', 'install')
-def cmd_install():
+@cli.command('install', is_default=False)
+def cmd_install(args):
     "Install packages by frozen.txt and resolve ones that was not frozen"
     install_all(**create_parser_or_exit())
 
 
-@CmdRegister.cmdline('upgrade')
-def cmd_upgrade():
-    """
-    [package [pre]] if package provided will upgrade it and dependencies or all packages from PyPI.
-    If `pre` provided will look for prereleases.
-    """
-    key = sys.argv[2] if len(sys.argv) > 2 else None
-    prereleases = sys.argv[3] == 'pre' if len(sys.argv) > 3 else False
+@cli.command(
+    'upgrade',
+    help='Upgrade all the required packages or a single package if specified',
+    arguments=(
+        Argument('package', nargs='?', help='Package name to upgrade'),
+        Option('--pre', action='store_true', help='Allow pre-release versions')
+    )
+)
+def cmd_upgrade(args):
+    key = args.package
+    prereleases = args.pre
     upgrade_all(key=key, prereleases=prereleases, **create_parser_or_exit())
 
 
-CmdRegister.cmdline('fixate')(fixate)
+cli.command(
+    'fixate',
+    help='Put activation code to usercustomize.py for the user'
+)(fixate)
 
 
-@CmdRegister.cmdline('exec')
-def cmd_exec():
+@cli.command('exec', help='Execute setuptools entry', arguments=(
+    Argument('interpreter'),
+    Argument('command'),
+    Argument('args', nargs=-1)
+))
+def cmd_exec(args):
     "executes setuptools entry"
-    execute(sys.argv[0], sys.argv[2], sys.argv[3:])
+    execute(args.interpreter, args.command, args.args)
 
 
-@CmdRegister.cmdline('entry_points')
-def cmd_entry_points():
-    "prints available setuptools entries"
+@cli.command('entry_points', help='List available setuptools entries')
+def cmd_entry_points(_):
     for entry, package in entry_points().items():
         print('%s (%s)' % (entry, package))
 
 
-@CmdRegister.cmdline('edit')
-def cmd_edit():
-    "prints directory path to package"
+@cli.command('edit', help='Print directory path to the package', arguments=(
+    Argument('package', help='Package name from the requirements.'),
+))
+def cmd_edit(args):
     parser_kw = create_parser_parameters()
     suite = Parser(**parser_kw).create_suite()
     if suite.need_freeze():
@@ -854,9 +836,8 @@ def cmd_edit():
     print(suite.states[sys.argv[2]].frozen_dist().location)
 
 
-@CmdRegister.cmdline('info')
-def cmd_info():
-    "prints info about Pundle state"
+@cli.command('info', help='Print info about pundle state')
+def cmd_info(_):
     parser_kw = create_parser_parameters()
     suite = Parser(**parser_kw).create_suite()
     if suite.need_freeze():
@@ -898,14 +879,25 @@ def run_console(glob):
     code.InteractiveConsole(locals=glob).interact()
 
 
-@CmdRegister.cmdline('console')
-def cmd_console():
-    "[ipython|bpython|ptpython] starts python console with activated pundle environment"
+@cli.command(
+    'console',
+    help=(
+        'Start python interpreter (ipython|bpython|ptpython) '
+        'with activated pundle environment'
+    ),
+    arguments=(
+        Argument('interpreter', nargs='?', help=(
+            'Interpreter to start. '
+            'If not specified use the default python interpreter.'
+        )),
+    ),
+)
+def cmd_console(args):
     suite = activate()
     glob = {
         'pundle_suite': suite,
     }
-    interpreter = sys.argv[2] if len(sys.argv) > 2 else None
+    interpreter = args.interpreter
     if not interpreter:
         run_console(glob)
     elif interpreter == 'ipython':
@@ -918,38 +910,52 @@ def cmd_console():
         from bpython import embed
         embed(glob)
     else:
-        raise PundleException('Unknown interpreter: {}. Choose one of None, ipython, bpython, ptpython.')
+        raise PundleException(
+            'Unknown interpreter: {}. '
+            'Choose one of the installed on your system. '
+            'For instance, ipython, bpython, ptpython.'.format(interpreter)
+        )
 
 
-@CmdRegister.cmdline('run')
-def cmd_run():
-    "executes given script"
+@cli.command('run', help='Execute given script', arguments=(
+    Argument('script'),
+    Argument('args', nargs='*'),
+))
+def cmd_run(args):
+    # /pundle run test.py -- 1 --help
     activate()
     import runpy
     sys.path.insert(0, '')
-    script = sys.argv[2]
-    sys.argv = [sys.argv[2]] + sys.argv[3:]
+    script = args.script
+    sys.argv = [script] + args.args
     runpy.run_path(script, run_name='__main__')
 
 
-@CmdRegister.cmdline('module')
-def cmd_module():
-    "executes module like `python -m`"
+@cli.command('module', help='Execute module like `python -m`', arguments=(
+    Argument('module'),
+    Argument('args', nargs='*')
+))
+def cmd_module(args):
+    # ./pundle run ../pundle.py -- --help
     activate()
     import runpy
     sys.path.insert(0, '')
-    module = sys.argv[2]
-    sys.argv = [sys.argv[2]] + sys.argv[3:]
+    module = args.module
+    sys.argv = [module] + args.args
     runpy.run_module(module, run_name='__main__')
 
 
-@CmdRegister.cmdline('env')
-def cmd_env():
-    "populates PYTHONPATH with packages paths and executes command line in subprocess"
+@cli.command('env', help='Execute any command in the environment.', arguments=(
+    Argument('command'),
+    Argument('args', nargs='*'),
+))
+def cmd_env(args):
+    # ./pundle env python -- -c 'print(__import__("os").environ["PYTHONPATH"])'
     activate()
     aug_env = os.environ.copy()
     aug_env['PYTHONPATH'] = ':'.join(sys.path)
-    subprocess.call(sys.argv[2:], env=aug_env)
+    cmd_args = [args.command] + list(args.args)
+    subprocess.call(cmd_args, env=aug_env)
 
 
 ENTRY_POINT_TEMPLATE = '''#! /usr/bin/env python
@@ -958,9 +964,8 @@ pundle.entry_points()['{entry_point}'].get_entry_info('console_scripts', '{entry
 '''
 
 
-@CmdRegister.cmdline('linkall')
-def link_all():
-    "links all packages to `.pundle_local` dir"
+@cli.command('linkall', help='Link all packages to `.pundle_local` dir')
+def link_all(_):
     local_dir = '.pundle_local'
     suite = activate()
 
@@ -1001,9 +1006,8 @@ def link_all():
         os.remove(de.path)
 
 
-@CmdRegister.cmdline('show_requirements')
-def show_requirements():
-    "shows details requirements info"
+@cli.command('show_requirements', help='Show detailed requirements info')
+def show_requirements(_):
     suite = activate()
     for name, state in suite.states.items():
         if state.requirement:
@@ -1033,4 +1037,4 @@ def use(key):
 
 
 if __name__ == '__main__':
-    CmdRegister.main()
+    cli.run()
