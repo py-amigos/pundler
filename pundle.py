@@ -997,7 +997,7 @@ cli = CommandGroup(
 )
 
 
-@cli.command('install', is_default=False)
+@cli.command('install', is_default=True)
 def cmd_install(args):
     "Install packages by frozen.txt and resolve ones that was not frozen"
     install_all(**create_parser_or_exit())
