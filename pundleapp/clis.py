@@ -9,15 +9,19 @@ from .errors import PundleException
 class Command:
     """Result of applying CommandGroup.command decorator."""
 
-    def __init__(self, fn, args_parser):
+    def __init__(self, name, fn, args_parser):
+        self.name = name
         self.fn = fn
         self.args_parser = args_parser
+
+    def print_help(self):
+        self.args_parser.print_help()
 
     def __call__(self, args):
         try:
             self.fn(args)
         except PundleException as error:
-            print(str(error))
+            sys.stderr.write(str(error))
             sys.exit(1)
 
 
@@ -44,6 +48,7 @@ class CommandGroup:
 
         :parma str prog: Name of the executable.
         """
+        self.cli_name = cli_name
         self._parser = argparse.ArgumentParser(prog=cli_name)
         self._subparsers = self._parser.add_subparsers(
             title='subcommands',
@@ -56,7 +61,7 @@ class CommandGroup:
         parser = self._subparsers.add_parser(name, help=help)
 
         def decorator(fn):
-            command = Command(fn, parser)
+            command = Command(name, fn, parser)
             if is_default:
                 self._default_command = command
             parser.set_defaults(func=command)
