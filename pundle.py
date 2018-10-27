@@ -1203,6 +1203,9 @@ def cmd_env(args):
     | pundle env python -- -c 'print(__import__("os").environ["PYTHONPATH"])'
     """
     activate()
+    # walk all the installed packages, check it has bin folder and add it to the
+    # PATH evar.
+
     aug_env = os.environ.copy()
     aug_env['PYTHONPATH'] = ':'.join(sys.path)
     cmd_args = [args.command] + list(args.args)
