@@ -41,19 +41,27 @@ Option = Argument
 class CommandGroup:
     """Group of the commands that are represented as argparse subparsers."""
 
-    def __init__(self, cli_name):
+    def __init__(self, cli_name, root_parser=None):
         """ Create a group of the commands.
 
         :parma str prog: Name of the executable.
         """
         self.cli_name = cli_name
-        self._parser = argparse.ArgumentParser(prog=cli_name)
+        self._parser = root_parser or argparse.ArgumentParser(prog=cli_name)
         self._subparsers = self._parser.add_subparsers(
             title='subcommands',
             description='valid subcommands',
         )
         # The default command is run when there is no subcommand specified.
         self._default_command = None  # type: Command
+
+    def group(self, name, help=None):
+        """Register sub-group."""
+        parser = self._subparsers.add_parser(name, help=help)
+        def show_group_help(args):
+            parser.print_help()
+        parser.set_defaults(func=show_group_help)
+        return CommandGroup(name, root_parser=parser)
 
     def command(self, name, help=None, is_default=False, arguments=()):
         """ Register the command in the group.

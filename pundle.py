@@ -984,7 +984,11 @@ def execute(interpreter, cmd, args):
     # clean it
     entries = entry_points()
     if cmd not in entries:
-        print_message('Script is not found. Check if package is installed, or look at the `pundle entry_points`')
+        print_message(
+            'Script is not found. '
+            'Check if package is installed, '
+            'or look at the `pundle entrypoints list`'
+        )
         sys.exit(1)
     exc = entries[cmd].get_entry_info('console_scripts', cmd).load(require=False)
     sys.path.insert(0, '')
@@ -995,6 +999,28 @@ def execute(interpreter, cmd, args):
 cli = CommandGroup(
     cli_name='pundle',
 )
+
+
+
+entry_points_group = cli.group('entrypoints', 'Group of entry-point related commands')
+
+
+@entry_points_group.command('list', help='List available setuptools entries')
+def cmd_list_entry_points(args):
+    for entry, package in entry_points().items():
+        print('%s (%s)' % (entry, package))
+
+
+
+@entry_points_group.command('run', help='Execute setuptools entry', arguments=(
+    Argument('interpreter'),
+    Argument('command'),
+    Argument('args', nargs='*')
+))
+def cmd_run_entry_points(args):
+    "Run setuptools entry-point."
+    execute(args.interpreter, args.command, args.args)
+
 
 
 @cli.command('version', help='Print the application version')
@@ -1031,22 +1057,6 @@ cli.command(
     'fixate',
     help='Put activation code to usercustomize.py for the user'
 )(fixate)
-
-
-@cli.command('exec', help='Execute setuptools entry', arguments=(
-    Argument('interpreter'),
-    Argument('command'),
-    Argument('args', nargs=-1)
-))
-def cmd_exec(args):
-    "executes setuptools entry"
-    execute(args.interpreter, args.command, args.args)
-
-
-@cli.command('entry_points', help='List available setuptools entries')
-def cmd_entry_points(_):
-    for entry, package in entry_points().items():
-        print('%s (%s)' % (entry, package))
 
 
 @cli.command('edit', help='Print directory path to the package', arguments=(
