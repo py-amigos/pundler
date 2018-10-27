@@ -997,6 +997,16 @@ cli = CommandGroup(
 )
 
 
+@cli.command('version', help='Print the application version')
+def cmd_version(args):
+    """Print the application version.
+
+    | pundle version
+    """
+    version = pkg_resources.get_distribution('pundle').version
+    print(version)
+
+
 @cli.command('install', is_default=True)
 def cmd_install(args):
     "Install packages by frozen.txt and resolve ones that was not frozen"
@@ -1131,12 +1141,12 @@ def cmd_console(args):
         )
 
 
-@cli.command('run', help='Execute given script', arguments=(
+@cli.command('run', help='Run given script', arguments=(
     Argument('script'),
     Argument('args', nargs='*'),
 ))
 def cmd_run(args):
-    """ Execute given script.
+    """ Run the given python script in the activated environment.
 
     Examples:
 
