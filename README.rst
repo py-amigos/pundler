@@ -87,12 +87,14 @@ Or we can try to use pundle features:
 
 .. code-block:: bash
 
-    # to execute entry point
-    pundle exec some_package_entry_point
+    # to run entry point
+    pundle entrypoints run some_package_entry_point
     # to run python script
     pundle run my_script.py
     # run module like python -m
     pundle module some.my.module
+    # run any executable in the environment
+    pundle exec exe_name
 
 To add VCS to ``requirements.txt`` use ``git+url#egg=my_package-0.1.11``
 form.

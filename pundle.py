@@ -431,6 +431,17 @@ class Suite(object):
     def required_states(self):
         return [state for state in self.states.values() if state.requirement]
 
+    @property
+    def path_dirs(self):
+        "List directories that can be used in PATH."
+        return [
+            bin_dir
+            for state in self.required_states()
+            for path in (state.frozen_dist().location,)
+            for bin_dir in (os.path.join(path, 'bin'),)
+            if os.path.isdir(bin_dir)
+        ]
+
     def need_freeze(self, verbose=False):
         self.install(install=False)
         not_correct = not all(state.has_correct_freeze() for state in self.required_states())
@@ -1191,22 +1202,21 @@ def cmd_module(args):
     runpy.run_module(module, run_name='__main__')
 
 
-@cli.command('env', help='Execute any command in the environment', arguments=(
+@cli.command('exec', help='Execute any command in the environment', arguments=(
     Argument('command'),
     Argument('args', nargs='*'),
 ))
-def cmd_env(args):
+def cmd_exec(args):
     """ Execute any command in the environment.
 
     Examples:
 
-    | pundle env python -- -c 'print(__import__("os").environ["PYTHONPATH"])'
+    | pundle exec python -- -c 'print(__import__("os").environ["PYTHONPATH"])'
     """
-    activate()
-    # walk all the installed packages, check it has bin folder and add it to the
-    # PATH evar.
-
+    suite = activate()
     aug_env = os.environ.copy()
+    bin_dirs = ':'.join(suite.path_dirs)
+    aug_env['PATH'] = ':'.join((aug_env.get('PATH'), bin_dirs))
     aug_env['PYTHONPATH'] = ':'.join(sys.path)
     cmd_args = [args.command] + list(args.args)
     subprocess.call(cmd_args, env=aug_env)
