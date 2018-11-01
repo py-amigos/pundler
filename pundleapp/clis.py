@@ -41,10 +41,11 @@ Option = Argument
 class CommandGroup:
     """Group of the commands that are represented as argparse subparsers."""
 
-    def __init__(self, cli_name, root_parser=None):
+    def __init__(self, cli_name, root_parser=None, options=None):
         """ Create a group of the commands.
 
-        :parma str prog: Name of the executable.
+        :param str prog: Name of the executable.
+        :param Sequence[Option]: The options that are defined on the group.
         """
         self.cli_name = cli_name
         self._parser = root_parser or argparse.ArgumentParser(prog=cli_name)
@@ -54,6 +55,13 @@ class CommandGroup:
         )
         # The default command is run when there is no subcommand specified.
         self._default_command = None  # type: Command
+        for option in (options or ()):
+            option.add_to_parser(self._parser)
+        self._setup_fns = []
+
+    def on_start(self, fn):
+        fn and self._setup_fns.append(fn)
+        return self
 
     def group(self, name, help=None):
         """Register sub-group."""
@@ -88,11 +96,17 @@ class CommandGroup:
 
     def run(self):
         args = self._parser.parse_args()
+
+        for fn in self._setup_fns:
+            fn(args)
+
         command = getattr(args, 'func', None)
         # args.func is missing in case if no subcommand specified
         if command is None and self._default_command:
             command = self._default_command
-            args = command.args_parser.parse_args()
+            # If the argumetns are set for the group we are interested to parse
+            # only the known args for the sub-command parser.
+            args = command.args_parser.parse_known_args()
 
         if command:
             command(args)

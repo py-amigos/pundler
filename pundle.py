@@ -6,6 +6,8 @@ except ImportError:
     from urlparse import urlparse, parse_qsl
 from collections import defaultdict
 from base64 import b64encode, b64decode
+import logging
+import logging.config
 import platform
 import os.path as op
 import os
@@ -46,6 +48,9 @@ except AttributeError:
 
 def print_message(*a, **kw):
     print(*a, **kw)
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def python_version_string():
@@ -384,7 +389,7 @@ class AggregatingLocator(object):
 
     def locate(self, req, **kw):
         for locator in self.locators:
-            print_message('try', locator, 'for', req)
+            _LOGGER.debug('try %s for %s', locator, req)
             revealed = locator.locate(req, **kw)
             if revealed:
                 return revealed
@@ -1007,10 +1012,43 @@ def execute(interpreter, cmd, args):
     exc()
 
 
+def setup_logging(args):
+    level = args.logging_level.upper()
+    logging.config.dictConfig(dict(
+        version=1,
+        formatters={
+            'f': {'format':
+                  '%(asctime)s %(levelname)s %(message)s'}
+        },
+        handlers={
+            'h': {'class': 'logging.StreamHandler',
+                  'formatter': 'f',
+                  'level': level}
+        },
+        root={
+            'handlers': ['h'],
+            'level': level,
+        },
+        loggers={
+            _LOGGER.name: {
+                'handlers': [],
+                'level': level,
+            }
+        }
+    ))
+
+
 cli = CommandGroup(
     cli_name='pundle',
-)
-
+    options=[
+        Option(
+            '--logging-level',
+            default='info',
+            choices=['debug', 'info', 'error'],
+            help='Logging level'
+        )
+    ],
+).on_start(setup_logging)
 
 
 entry_points_group = cli.group('entrypoints', 'Group of entry-point related commands')
