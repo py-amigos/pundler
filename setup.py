@@ -33,7 +33,7 @@ setupconf = dict(
     py_modules=['pundle'],
     entry_points=dict(
         console_scripts=[
-            'pundle = pundle:CmdRegister.main'
+            'pundle = pundle:cli.run'
         ]
     ),
     classifiers=[
