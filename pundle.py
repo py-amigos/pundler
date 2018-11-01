@@ -21,6 +21,7 @@ import shlex
 import json
 import hashlib
 import pkg_resources
+import functools
 try:
     from pip import main as pip_exec
 except ImportError:
@@ -916,17 +917,6 @@ def upgrade_all(**kw):
     suite.save_frozen()
 
 
-def install_all(**kw):
-    suite = create_parser(**kw).create_suite()
-    if suite.need_freeze() or suite.need_install():
-        print_message('Install some packages')
-        suite.install()
-    else:
-        print_message('Nothing to do, all packages installed')
-    suite.save_frozen()
-    return suite
-
-
 def activate():
     parser_kw = create_parser_parameters()
     if not parser_kw:
@@ -1082,10 +1072,34 @@ def cmd_version(args):
     print(version)
 
 
+def make_suite():
+    parser_kw = create_parser_parameters()
+    if not parser_kw:
+        raise PundleException(
+            'You have not requirements.txt. Create it and run again.')
+    suite = create_parser(**parser_kw).create_suite()
+    return suite
+
+
+def has_suite(cmd_fn):
+    """Simple decorator that injects suite param in the cmd callable."""
+    @functools.wraps(cmd_fn)
+    def decorated(args):
+        return cmd_fn(args, make_suite())
+    return decorated
+
+
 @cli.command('install', is_default=True)
-def cmd_install(args):
+@has_suite
+def cmd_install(args, suite):
     "Install packages by frozen.txt and resolve ones that was not frozen"
-    install_all(**create_parser_or_exit())
+    if suite.need_freeze() or suite.need_install():
+        print_message('Install some packages')
+        suite.install()
+    else:
+        print_message('Nothing to do, all packages installed')
+    suite.save_frozen()
+    return suite
 
 
 @cli.command(
@@ -1111,18 +1125,16 @@ cli.command(
 @cli.command('edit', help='Print directory path to the package', arguments=(
     Argument('package', help='Package name from the requirements.'),
 ))
-def cmd_edit(args):
-    parser_kw = create_parser_parameters()
-    suite = create_parser(**parser_kw).create_suite()
+@has_suite
+def cmd_edit(args, suite):
     if suite.need_freeze():
         raise PundleException('%s file is outdated' % suite.parser.frozen_file)
     print(suite.states[sys.argv[2]].frozen_dist().location)
 
 
 @cli.command('info', help='Print info about pundle state')
-def cmd_info(_):
-    parser_kw = create_parser_parameters()
-    suite = create_parser(**parser_kw).create_suite()
+@has_suite
+def cmd_info(_, suite):
     if suite.need_freeze():
         print('frozen.txt is outdated')
     else:
