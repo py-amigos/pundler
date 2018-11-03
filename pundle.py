@@ -401,7 +401,7 @@ class Suite(object):
     Main object that represents current directory pundle state
     """
     def __init__(self, parser, envs=[], urls=None):
-        self.states = {}
+        self.states = {}  # type: typing.Mapping[str, RequirementState]
         self.parser = parser
         self.envs = envs
         self.urls = urls or ['https://pypi.python.org/simple/']
@@ -483,6 +483,9 @@ class Suite(object):
             state.reveal_requirements(self, install=install)
 
     def upgrade(self, key=None, prereleases=False):
+        if key and key not in self.states:
+            raise PundleException(
+                'Requested package {name!r} is not installed'.format(name=key))
         states = [self.states[key]] if key else self.required_states()
         for state in states:
             print('Check', state.requirement.req)
@@ -1313,10 +1316,10 @@ def link_all(_):
         open(bin_filename, 'w').write(ENTRY_POINT_TEMPLATE.format(entry_point=bin_name))
         file_stat = os.stat(bin_filename)
         os.chmod(bin_filename, file_stat.st_mode | stat.S_IEXEC)
-    local_dir_info.pop('bin')
+    local_dir_info.pop('bin', None)
 
     # remove extra links
-    for de in local_dir_info:
+    for de in local_dir_info.values():
         os.remove(de.path)
 
 
